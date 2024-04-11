@@ -1,0 +1,212 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Get Checkin Data</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        .avatar-container {
+            text-align: center;
+        }
+
+        .avatar-container img {
+            max-width: 100%;
+            height: auto;
+        }
+
+        .text-red {
+            color: red;
+        }
+
+        .text-green {
+            color: green;
+        }
+
+        @media (max-width: 767px) {
+            .table thead th, .table td {
+                padding: 0.5rem;
+                font-size: 0.8rem;
+            }
+
+            .avatar-container img {
+                width: 40px;
+                height: 40px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container-fluid my-5">
+    <h1 class="text-center">Get Checkin Data</h1>
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="form-group">
+                <label for="date">Date:</label>
+                <input type="date" class="form-control" id="date" value="2024-04-11" oninput="getCheckinData()">
+            </div>
+            <div class="form-group">
+                <label for="employee-id">Employee ID:</label>
+                <input type="text" class="form-control" id="employee-id"
+                       onkeyup="if(event.keyCode === 13) getCheckinData()">
+            </div>
+            <table class="table table-striped" id="result-table" style="display: none;">
+                <thead>
+                <tr>
+                    <th>Avatar</th>
+                    <th>Date</th>
+                    <th>Location</th>
+                    <th>Check-in Time</th>
+                    <th>Status</th>
+                </tr>
+                </thead>
+                <tbody id="result-tbody"></tbody>
+            </table>
+            <div id="error-message" class="text-center"></div>
+        </div>
+    </div>
+</div>
+
+<footer class="footer mt-5">
+    <div class="container">
+        <div class="text-center">
+            <p>Lưu ý: App chỉ hiển thị thông tin chấm công khi bạn chấm công trên các camera cũ trước đây.</p>
+            <span>&copy; 2024 DF. All rights reserved.</span>
+        </div>
+    </div>
+</footer>
+
+<script>
+    window.onload = function() {
+        getCheckinData();
+
+        // Get aliasID from cookie and set it to the input field
+        const aliasID = getAliasIDFromCookie();
+        if (aliasID) {
+            document.getElementById('employee-id').value = aliasID;
+        }
+    };
+    function getAliasIDFromCookie() {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.startsWith('aliasID=')) {
+                return cookie.substring('aliasID='.length, cookie.length);
+            }
+        }
+        return '';
+    }
+
+    function saveAliasIDToCookie(aliasID) {
+        const expires = 'expires=' + new Date(Date.now() + 86400000 * 30).toUTCString();
+        document.cookie = 'aliasID=' + aliasID + '; ' + expires + '; path=/';
+    }
+
+    function getCheckinData() {
+        const dateInput = document.getElementById('date');
+        const date = dateInput.value;
+        const employeeIDInput = document.getElementById('employee-id');
+        let aliasID = employeeIDInput.value;
+
+        if (!aliasID) {
+            aliasID = getAliasIDFromCookie();
+            if (!aliasID) {
+                document.getElementById('error-message').textContent = 'Please enter your employee ID.';
+                return;
+            }
+        } else {
+            saveAliasIDToCookie(aliasID);
+        }
+
+        const url = 'https://partner.hanet.ai/person/getCheckinByPlaceIdInDay';
+        const params = {
+            placeID: 10865,
+            date: date,
+            page: 1,
+            aliasID: aliasID
+        };
+        const headers = {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        };
+        const data = {
+            token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ijg4ODc2MjQ0NTE2NTQ2NzgzMzIiLCJlbWFpbCI6InRhaS5sZW5nb2NAZ2dnLmNvbS52biIsImNsaWVudF9pZCI6IjlmNWZmYzFjNTE5ZmQyYmExZjAwNjYwODMzNmIyZWI3IiwidHlwZSI6ImF1dGhvcml6YXRpb25fY29kZSIsImlhdCI6MTcwMzU2NjQ1OSwiZXhwIjoxNzM1MTAyNDU5fQ.F7IKsYYKUKxoQWYZ_XGMnq2EMKvvWa2RhqtMKs2LSNY'
+        };
+
+        axios.post(url, data, {
+            params: params,
+            headers: headers
+        })
+            .then(response => {
+                const filteredData = response.data.data.filter(item => item.aliasID === aliasID);
+
+                // Sort the filtered data by checkinTime in ascending order
+                filteredData.sort((a, b) => new Date(a.checkinTime) - new Date(b.checkinTime));
+
+                const resultTable = document.getElementById('result-table');
+                const resultTbody = document.getElementById('result-tbody');
+                resultTbody.innerHTML = '';
+
+                filteredData.forEach(item => {
+                    const row = document.createElement('tr');
+
+                    const avatarCell = document.createElement('td');
+                    avatarCell.className = 'avatar-container';
+                    const avatarImg = document.createElement('img');
+                    avatarImg.src = item.avatar;
+                    avatarImg.width = 50;
+                    avatarImg.height = 50;
+                    avatarCell.appendChild(avatarImg);
+
+                    const dateCell = document.createElement('td');
+                    dateCell.textContent = item.date;
+                    const locationCell = document.createElement('td');
+                    locationCell.textContent = item.place;
+                    const timeCell = document.createElement('td');
+                    const checkinTime = new Date(item.checkinTime);
+                    timeCell.textContent = checkinTime.toLocaleString();
+                    const statusCell = document.createElement('td');
+                    statusCell.className = 'font-weight-bold';
+
+                    // Compare check-in time with time marks
+                    const checkInHour = checkinTime.getHours();
+                    const checkInMinute = checkinTime.getMinutes();
+                    if (checkInHour < 8 || (checkInHour === 8 && checkInMinute < 45)) {
+                        statusCell.textContent = 'Checked in early';
+                        statusCell.classList.add('text-green');
+                    }
+                    if ((checkInHour > 8 || (checkInHour === 8 && checkInMinute >= 45)) && 
+                        (checkInHour < 13 || (checkInHour === 13 && checkInMinute < 30))) {
+                        const lateMinutes = (checkInHour - 8) * 60 + checkInMinute - 45;
+                        statusCell.textContent = 'Checked in late by ' + lateMinutes + ' minutes';
+                        statusCell.classList.add('text-red');
+                    } else if (checkInHour >= 13 && checkInHour < 17 && (checkInHour > 13 || checkInMinute >= 30)) {
+                        statusCell.textContent = 'Checked out soon';
+                        statusCell.classList.add('text-red');
+                    } else if (checkInHour >= 17 && (checkInHour > 17 || checkInMinute >= 30)) {
+                        statusCell.textContent = 'Checked out on time';
+                        statusCell.classList.add('text-blue');
+                    } else {
+                        statusCell.textContent = 'Checked in on time';
+                        statusCell.classList.add('text-green');
+                    }
+
+                    row.appendChild(avatarCell);
+                    row.appendChild(dateCell);
+                    row.appendChild(locationCell);
+                    row.appendChild(timeCell);
+                    row.appendChild(statusCell);
+                    resultTbody.appendChild(row);
+                });
+
+                resultTable.style.display = 'table';
+                document.getElementById('error-message').textContent = '';
+            })
+            .catch(error => {
+                console.error(error);
+                document.getElementById('error-message').textContent = 'Error: ' + error.message;
+                document.getElementById('result-table').style.display = 'none';
+            });
+    }
+</script>
+</body>
+</html>
